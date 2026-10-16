@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snake'd Playtest</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Figtree:wght@400;600;700&display=swap">
+<style>
+/* Layout: an oval card table with every player seated around it (you at the bottom), the trick pile in the middle, your full hand below. Single dark felt look on purpose. */
+:root{
+  --felt:#13201a; --felt2:#1b2c23; --rail:#2a3d31; --wood:#7a4a1c; --wood2:#a8682a; --ink:#f1e8d4; --muted:#a8b3a2; --gold:#e0a83f; --warn:#ff8a7a; --good:#8fdc8a;
+  --red:#e0352b; --blue:#2b6cf0; --green:#16a34a; --pink:#ff3fc8; --black:#0d0d0d;
+  --display:"Saira Condensed","Arial Narrow",sans-serif; --body:"Figtree",system-ui,sans-serif;
+  --cw:clamp(46px,min(10.5vw,15.5vh),112px);
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{background:radial-gradient(ellipse at 50% 40%,#1c3326 0%,#0e1a13 60%,#070d09 100%) fixed,#0e1a13;color:var(--ink);height:100%}
+body{font:14px/1.45 var(--body);min-height:100%}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.app{max-width:1320px;margin:0 auto;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.logo{font:800 24px/1 var(--display);letter-spacing:.04em;margin:0}
+.logo span{color:var(--gold)}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-variant-numeric:tabular-nums}
+.pill{background:var(--felt2);border:1px solid var(--rail);border-radius:999px;padding:4px 12px;font-weight:600;white-space:nowrap}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,.35);vertical-align:-1px}
+.tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:var(--felt2);border:1px solid var(--rail);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--gold)}
+.btn.primary{background:var(--gold);color:#1a1206;border-color:var(--gold)}
+.btn.big{font-size:17px;padding:12px 22px}
+.btn[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.main{display:grid;gap:12px;min-width:0}
+
+/* ---- step tracker ---- */
+.steps{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.step{padding:4px 9px;border-radius:999px;color:var(--muted);background:transparent;border:1px solid var(--rail)}
+.step.done{color:var(--good);border-color:transparent}
+.step.now{background:var(--gold);color:#1a1206;border-color:var(--gold)}
+.tdots{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
+.tdots i{width:7px;height:7px;border-radius:50%;background:var(--rail);display:block}
+.tdots i.on{background:var(--good)}.tdots i.cur{background:var(--ink)}
+
+/* ---- the table ---- */
+.field{position:relative;width:100%;flex:1 1 auto;min-height:300px;--fc:50px;--tc:62px}
+
+/* step pyramid seen from above: nested stone terraces, a stairway on each side, the table on the summit */
+.pyr{position:absolute;inset:0;pointer-events:none}
+.pyr i{position:absolute;border-radius:6px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.28),inset 0 3px 0 rgba(255,240,200,.18),0 4px 10px rgba(0,0,0,.45)}
+.pyr i:nth-child(1){inset:0;background:linear-gradient(160deg,#6d5a3d,#4e3f2a)}
+.pyr i:nth-child(2){inset:2.2% 1.6%;background:linear-gradient(160deg,#7d6846,#5a4930)}
+.pyr i:nth-child(3){inset:4.4% 3.2%;background:linear-gradient(160deg,#8d7650,#665336)}
+.pyr i:nth-child(4){inset:6.6% 4.8%;background:linear-gradient(160deg,#9d855a,#735e3d)}
+.pyr i:nth-child(5){inset:8.8% 6.4%;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 13h4V5h8v4H8v4h10V1H0' fill='none' stroke='%23e0c070' stroke-width='1.6' opacity='.55'/%3E%3C/svg%3E") repeat-x top/28px 14px,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 13h4V5h8v4H8v4h10V1H0' fill='none' stroke='%23e0c070' stroke-width='1.6' opacity='.55'/%3E%3C/svg%3E") repeat-x bottom/28px 14px,linear-gradient(160deg,#b0966a,#836b46)}
+.pyr b{position:absolute;background:repeating-linear-gradient(0deg,#a68d63 0 6px,#6b5737 6px 8px);box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.pyr b.s{left:50%;bottom:0;height:9%;width:12%;transform:translateX(-50%)}
+.pyr b.n{left:50%;top:0;height:9%;width:12%;transform:translateX(-50%) rotate(180deg)}
+.pyr b.w{left:0;top:50%;width:6.5%;height:16%;transform:translateY(-50%);background:repeating-linear-gradient(90deg,#a68d63 0 6px,#6b5737 6px 8px)}
+.pyr b.e{right:0;top:50%;width:6.5%;height:16%;transform:translateY(-50%);background:repeating-linear-gradient(270deg,#a68d63 0 6px,#6b5737 6px 8px)}
+.pyr em{position:absolute;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,#ffd27a,#e07a1f 55%,rgba(224,122,31,0) 72%);animation:torch 1.6s ease-in-out infinite alternate}
+@keyframes torch{to{transform:scale(1.25);opacity:.75}}
+.felt{position:absolute;inset:12% 9%;border-radius:50%;background:radial-gradient(ellipse at 50% 45%,#2f6b4c 0%,#1f4a35 55%,#173627 100%);
+  box-shadow:0 0 0 8px #c9b07a,0 0 0 11px #3fa58a,0 0 0 19px #8a7048,0 14px 34px rgba(0,0,0,.6),inset 0 0 60px rgba(0,0,0,.45)}
+@media (max-width:560px){.felt{inset:12% 9%;box-shadow:0 0 0 5px #c9b07a,0 0 0 7px #3fa58a,0 0 0 12px #8a7048,0 10px 24px rgba(0,0,0,.6),inset 0 0 40px rgba(0,0,0,.45)}.pyr b.w,.pyr b.e{width:9%}}
+.seat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:3;transition:filter .2s}
+.plate{display:flex;align-items:center;gap:6px;background:rgba(10,18,13,.88);border:1.5px solid var(--rail);border-radius:999px;padding:3px 10px 3px 4px;white-space:nowrap;transition:border-color .2s, box-shadow .2s}
+.avatar{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:800 13px/1 var(--display);color:#1a1206;background:var(--gold)}
+.pname{font:700 15px/1 var(--display);letter-spacing:.04em;text-transform:uppercase}
+.chip{font:800 10px/1 var(--body);padding:3px 5px;border-radius:4px;background:var(--rail);color:var(--muted);letter-spacing:.05em}
+.chip.lead{background:var(--gold);color:#1a1206}
+.seat.turn .plate{border-color:var(--gold);box-shadow:0 0 0 4px rgba(224,168,63,.25),0 0 18px rgba(224,168,63,.5);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(224,168,63,.12),0 0 26px rgba(224,168,63,.65)}}
+.seat.won .plate{border-color:var(--good);box-shadow:0 0 0 4px rgba(143,220,138,.3)}
+.slots{display:flex;gap:4px;margin-bottom:6px}
+.seat.top{flex-direction:column-reverse}
+.seat.top .slots{margin-bottom:0;margin-top:2px}
+.seat.top .tgt{bottom:auto;top:-7px}
+.inforow{display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap;max-width:calc(var(--fc)*3.4)}
+.seat.mine .inforow{max-width:none}
+.seat.mine .slot{width:calc(var(--fc)*1.4)}
+.seat.mine .slots{gap:6px}
+.slot{width:var(--fc);aspect-ratio:300/412;border-radius:5px;position:relative}
+.slot.empty{border:1.5px dashed rgba(241,232,212,.18)}
+.slot.pick{border:2px dashed var(--gold);animation:blink 1.1s ease-in-out infinite}
+@keyframes blink{50%{border-color:rgba(224,168,63,.3)}}
+.tok{display:flex;gap:6px;align-items:center;font:700 12px/1 var(--body);color:var(--muted);background:rgba(10,18,13,.75);border-radius:999px;padding:3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tok svg{width:14px;height:14px;display:block}
+.tok b{color:var(--ink)}
+.tok .fp b{color:#7fe39c}.tok .dp b{color:#9fd3ff}.tok .tot b{color:var(--gold);font-size:13px}
+.tok > span{display:inline-flex;align-items:center;gap:3px}
+@media (max-width:560px){.tok .hidc{display:none}.tok{gap:5px;padding:2px 6px;font-size:11px}.tok svg{width:12px;height:12px}.pname{font-size:13px}.plate{padding:2px 8px 2px 3px}.avatar{width:18px;height:18px;font-size:11px}}
+.flies{display:flex;align-items:center;gap:1px;min-height:26px;background:rgba(10,18,13,.6);border:1px solid rgba(159,211,255,.25);border-radius:999px;padding:2px 8px}
+.flies svg{width:27px;height:27px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.flies svg.pop{animation:flypop .9s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes flypop{0%{transform:scale(0) rotate(-40deg)}60%{transform:scale(1.8) rotate(10deg)}100%{transform:none}}
+.flies .fn{font:800 18px/1 var(--display);color:#9fd3ff;margin-left:4px;font-variant-numeric:tabular-nums}
+.flies .none{font-size:11px;color:var(--muted)}
+.mine .flies{border-color:rgba(159,211,255,.6);box-shadow:0 0 12px rgba(159,211,255,.25)}
+@media (max-width:560px){.flies svg{width:15px;height:15px}.flies{min-height:20px;padding:1px 6px}.flies .fn{font-size:13px}}
+.tgt{position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);z-index:7;font:800 11px/1 var(--body);padding:3px 5px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.6);pointer-events:none}
+.tgt.need{background:var(--gold);color:#1a1206}
+.tgt.hit{background:var(--good);color:#0d2a10}
+.tgt.far{background:#5a6157;color:#e8e8e0}
+.tgt.over{background:var(--warn);color:#2a0d0d}
+.slot.bust .fc .face{filter:grayscale(.7) brightness(.7)}
+@media (max-width:560px){.tgt{font-size:9px;padding:2px 3px;bottom:-5px}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:12px;color:var(--muted);align-items:center}
+.legend .tgt{position:static;transform:none;display:inline-block}
+.peekrow{display:flex;gap:2px;max-width:calc(var(--fc)*4)}
+.peekrow img{width:calc(var(--fc)*.5);border-radius:2px;opacity:.75}
+
+/* cards on the table */
+.fc{position:absolute;inset:0;perspective:700px;border-radius:5px}
+.fc .inner{position:absolute;inset:0;transform-style:preserve-3d}
+.fc .face{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:5px;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 3px 8px rgba(0,0,0,.45);-webkit-user-drag:none;user-select:none}
+.fc .front{transform:rotateY(180deg)}
+.fc.up .inner{transform:rotateY(180deg)}
+.fc.flipping .inner{animation:flip .9s cubic-bezier(.3,.7,.2,1) both}
+@keyframes flip{0%{transform:rotateY(0) scale(1)}45%{transform:rotateY(90deg) scale(1.25) translateY(-8px)}100%{transform:rotateY(180deg) scale(1)}}
+.fc.dropin{animation:dropin .35s ease-out both}
+@keyframes dropin{from{transform:translateY(-14px) scale(1.15);opacity:0}}
+.fc.glow .face{box-shadow:0 0 0 3px var(--gold),0 0 20px rgba(224,168,63,.8)}
+.fc.legal{cursor:pointer}
+.fc.legal{transform:translateY(-7px)}
+.fc.legal .face{box-shadow:0 0 0 3px var(--gold),0 0 18px rgba(224,168,63,.85);animation:lg 1.2s ease-in-out infinite}
+@keyframes lg{50%{box-shadow:0 0 0 3px var(--gold),0 0 6px rgba(224,168,63,.4)}}
+.fc.legal:hover{transform:translateY(-10px)}
+.slot:hover .fc.up{z-index:6}
+.slot:hover .fc.up .inner{transform:rotateY(180deg) scale(1.9) translateY(-10px);transition:transform .15s}
+.slot .fc.up .inner{transition:transform .15s}
+
+/* center */
+.trick{position:absolute;inset:0;z-index:2;pointer-events:none}
+.tcard{position:absolute;width:var(--tc);aspect-ratio:300/412;transform:translate(-50%,-50%) rotate(var(--rot));transition:transform .55s cubic-bezier(.5,0,.75,0),opacity .55s}
+.tcard img{width:100%;height:100%;object-fit:cover;border-radius:6px;box-shadow:0 6px 14px rgba(0,0,0,.55);display:block}
+.tcard.enter{animation:slide .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes slide{from{transform:translate(calc(-50% + var(--fx)),calc(-50% + var(--fy))) rotate(0) scale(.75)}}
+.tcard.win img{box-shadow:0 0 0 3px var(--good),0 0 24px rgba(143,220,138,.8)}
+.tcard.snake img{box-shadow:0 0 0 3px var(--gold),0 0 24px rgba(224,168,63,.9)}
+.tcard.sweep{transform:translate(calc(-50% + var(--wx)),calc(-50% + var(--wy))) scale(.35) rotate(25deg);opacity:0}
+.tlabel{position:absolute;left:50%;top:100%;transform:translate(-50%,4px);font:700 11px/1.1 var(--body);white-space:nowrap;background:rgba(10,18,13,.85);padding:2px 6px;border-radius:4px}
+.trumpcorner{position:absolute;left:0;top:0;z-index:4;display:flex;align-items:center;gap:7px;background:rgba(10,18,13,.85);border:1.5px solid var(--rail);border-radius:999px;padding:4px 12px 4px 4px;font:700 13px/1 var(--body);white-space:nowrap}
+.trumpcorner:empty{display:none}
+.trumpcorner .d{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.7)}
+.trumpcorner .d.none{background:repeating-linear-gradient(45deg,#2b3a30 0 4px,#223028 4px 8px)}
+.trumpcorner small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.trumpcorner.pop{animation:pop .6s cubic-bezier(.2,1.6,.4,1) both}
+.hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;display:grid;justify-items:center;gap:6px;text-align:center;pointer-events:none;width:min(46%,320px)}
+.emblem{width:clamp(40px,6vw,56px);font-size:10px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font:800 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:#fff;border:3px solid rgba(255,255,255,.75);box-shadow:0 0 0 6px rgba(0,0,0,.25),0 0 30px rgba(0,0,0,.5);text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.emblem.none{background:repeating-linear-gradient(45deg,#2b3a30 0 6px,#223028 6px 12px);color:var(--muted)}
+.emblem.pop{animation:pop .6s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes pop{from{transform:scale(.2);opacity:0}}
+.hubtext{font:800 clamp(20px,3.6vw,34px)/1 var(--display);text-transform:uppercase;letter-spacing:.04em;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hubtext.big{font-size:clamp(34px,7vw,64px);color:var(--gold);animation:pop .5s cubic-bezier(.2,1.6,.4,1) both}
+.hubsub{font-size:13px;color:var(--ink);opacity:.85;text-shadow:0 1px 4px rgba(0,0,0,.8);text-wrap:balance}
+.tally{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.tally > span{display:inline-flex;align-items:center;gap:5px;background:rgba(10,18,13,.85);border:1.5px solid var(--rail);border-radius:999px;padding:3px 9px;font-weight:700;font-variant-numeric:tabular-nums;animation:pop .4s both}
+.tally > span.top{border-color:var(--gold)}
+.tally > span.out{opacity:.45;text-decoration:line-through}
+
+/* ---- instruction bar ---- */
+.bar{display:grid;gap:4px;justify-items:center;text-align:center;background:var(--felt2);border:1.5px solid var(--rail);border-radius:12px;padding:10px 14px}
+.bar.you{border-color:var(--gold);background:linear-gradient(180deg,rgba(224,168,63,.14),var(--felt2))}
+.bar .msg{font-size:17px;font-weight:700;text-wrap:balance}
+.bar .sub{color:var(--muted);font-size:13px;text-wrap:balance;max-width:70ch}
+.choices{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+
+/* ---- your hand ---- */
+.me{background:var(--felt2);border:1.5px solid var(--rail);border-radius:14px;padding:12px;display:grid;gap:10px}
+.mehead{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.seat-name{font:700 19px/1 var(--display);letter-spacing:.03em;text-transform:uppercase}
+.stats{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+.stats b{color:var(--ink)}
+.sorts{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.hint{font-size:12px;color:var(--muted)}
+.hands{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:560px){.hands{grid-template-columns:minmax(0,1fr)}}
+.hands > div{display:grid;gap:6px;min-width:0}
+.hands.one{grid-template-columns:minmax(0,1fr)}
+.handlabel{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.card{position:relative;display:block;width:var(--cw);aspect-ratio:300/412;border-radius:6px;overflow:hidden;border:0;padding:0;background:#000;flex:none;transition:transform .15s,opacity .15s,box-shadow .15s}
+.card img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;user-select:none;pointer-events:none}
+.card.sm{width:34px;border-radius:4px}
+.card.legal{cursor:pointer;box-shadow:0 0 0 3px var(--gold)}
+.card.legal:hover{transform:translateY(-6px)}
+.card.dim{opacity:.38}
+.card.chosen{box-shadow:0 0 0 3px var(--good);transform:translateY(-8px)}
+.card .tb{position:absolute;top:3px;right:3px;background:var(--gold);color:#1a1206;font:800 10px/1 var(--body);padding:3px 4px;border-radius:3px}
+#me .card{touch-action:none;cursor:grab}
+#me .card.legal{cursor:pointer}
+.card.src{opacity:.25}
+.card.ins-l{box-shadow:-5px 0 0 var(--gold)}
+.card.ins-r{box-shadow:5px 0 0 var(--gold)}
+.dragghost{position:fixed;left:0;top:0;pointer-events:none;z-index:50;box-shadow:0 14px 30px rgba(0,0,0,.6)}
+body.dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}
+
+/* ---- log + panels ---- */
+.log{position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 52px);width:min(320px,calc(100vw - 32px));z-index:30;box-shadow:0 12px 40px rgba(0,0,0,.6);background:var(--felt2);border:1.5px solid var(--rail);border-radius:12px;padding:10px 12px;max-height:80vh;overflow:auto;font-size:13px;display:grid;gap:4px;align-content:start}
+@media (max-width:900px){.log{max-height:220px}}
+.tip{position:absolute;right:0;top:0;z-index:5;max-width:min(46%,380px);background:rgba(10,18,13,.9);border:1.5px solid var(--rail);border-radius:12px;padding:7px 11px;display:grid;gap:2px;text-align:right}
+.tip:empty{display:none}
+.tip.you{border-color:var(--gold);box-shadow:0 0 16px rgba(224,168,63,.35)}
+.tip .msg{font-size:14px;font-weight:700;text-wrap:balance}
+.tip .sub{font-size:12px;color:var(--muted);text-wrap:balance}
+.tip .choices{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px}
+@media (max-width:560px){.tip{max-width:55%;padding:5px 8px}.tip .msg{font-size:12px}.tip .sub{display:none}}
+.hand{display:flex;align-items:flex-end;justify-content:center;gap:10px;padding-top:4px;min-height:calc(var(--cw)*1.37 + 12px)}
+.hand .row{flex-wrap:nowrap;justify-content:center;padding-top:10px;min-width:0;flex:0 1 auto}
+.hand .card{transition:width .35s ease,transform .15s,opacity .15s,box-shadow .15s}
+.hand .sorts{display:flex;flex-direction:column;gap:4px;margin:0}
+.hand .empty{color:var(--muted);font-size:13px;align-self:center}
+@media (max-width:700px){.hand .row .card+.card{margin-left:calc(var(--cw)*-.32)}:root{--cw:clamp(46px,min(15vw,12vh),80px)}.hand{gap:6px}}
+.log h2{font:700 16px var(--display);text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px;color:var(--muted)}
+.log p{margin:0;color:var(--muted)}
+.log p.k{color:var(--ink)}
+.log p.r{color:var(--gold);font-weight:700;margin-top:6px}
+.ov{position:fixed;inset:0;background:rgba(5,10,7,.8);display:grid;place-items:center;padding:16px;z-index:40;overflow:auto}
+.panel{background:var(--felt2);border:1.5px solid var(--rail);border-radius:16px;padding:22px;max-width:640px;width:100%;display:grid;gap:16px;max-height:calc(100vh - 32px);overflow:auto}
+.panel h2{font:800 32px/1 var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0}
+.panel h2 span{color:var(--gold)}
+.panel p{margin:0;color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{min-width:48px}
+.fld{display:grid;gap:8px;font-weight:600}
+input[type=text]{background:var(--felt);border:1px solid var(--rail);border-radius:8px;padding:9px 10px;color:var(--ink);font:inherit}
+.howto{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:520px){.howto{grid-template-columns:1fr}}
+.howto div{background:var(--felt);border:1px solid var(--rail);border-radius:10px;padding:10px;display:grid;gap:4px;align-content:start}
+.howto b{font:800 15px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--gold)}
+.howto span{font-size:13px;color:var(--muted)}
+.mini{position:relative;height:90px;border-radius:50%;background:radial-gradient(ellipse,#2a5a3e,#163223);box-shadow:0 0 0 5px var(--wood)}
+.mini i{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--muted);transform:translate(-50%,-50%);border:2px solid var(--felt)}
+.mini i.you{background:var(--gold)}
+.res{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.res th,.res td{padding:6px;text-align:left;border-bottom:1px solid var(--rail);vertical-align:middle}
+.res th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.yes{color:var(--good);font-weight:700}.no{color:var(--warn)}
+.rules{display:grid;gap:10px}
+.rules h3{margin:6px 0 0;font:700 18px var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--gold)}
+.rules ul{margin:0;padding-left:18px;display:grid;gap:4px}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}}
+body{margin:0}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1 class="logo">SNAKE'<span>D</span></h1>
+    <div class="meta" id="meta"></div>
+    <div class="tools">
+      <button class="btn sm" id="b-rules">Rules</button>
+      <button class="btn sm" id="b-log" aria-pressed="false">Log</button>
+      <button class="btn sm" id="b-peek" aria-pressed="false">Show hands</button>
+      <button class="btn sm" id="b-new">New game</button>
+    </div>
+  </header>
+  <section class="field" id="field" aria-label="Card table">
+    <div class="pyr" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><b class="n"></b><b class="s"></b><b class="w"></b><b class="e"></b><em style="left:2%;top:3%"></em><em style="right:2%;top:3%"></em><em style="left:2%;bottom:3%"></em><em style="right:2%;bottom:3%"></em></div>
+    <div class="felt"></div>
+    <div class="trumpcorner" id="tcorner"></div>
+    <div class="tip" id="bar" aria-live="polite"></div>
+    <div class="hub" id="hub"></div>
+    <div class="trick" id="trick"></div>
+    <div id="seats"></div>
+  </section>
+  <section class="hand" id="me" aria-label="Your hidden cards"></section>
+</div>
+<aside class="log" id="log" hidden><h2>Game log</h2></aside>
+<div class="ov" id="ov" hidden><div class="panel" id="panel"></div></div>
+
+<script src="engine.js"></script>
+<script>
+const S=window.Snaked, $=id=>document.getElementById(id);
+const SUITCOL={red:"var(--red)",blue:"var(--blue)",green:"var(--green)",pink:"var(--pink)",black:"var(--black)"};
+const BOTNAMES=["Moss","Tadpole","Fern","Lily","Croak"];
+const SPEED={slow:1.7,normal:1,fast:.45};
+const SUITI={red:0,blue:1,green:2,pink:3,black:4};
+const ICON={
+  fly:`<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="7" cy="8" rx="6" ry="2.6" fill="#9fd3ff" opacity=".85" transform="rotate(-20 7 8)"/><ellipse cx="17" cy="8" rx="6" ry="2.6" fill="#9fd3ff" opacity=".85" transform="rotate(20 17 8)"/><ellipse cx="7" cy="13" rx="5" ry="2.2" fill="#9fd3ff" opacity=".65" transform="rotate(15 7 13)"/><ellipse cx="17" cy="13" rx="5" ry="2.2" fill="#9fd3ff" opacity=".65" transform="rotate(-15 17 13)"/><rect x="11" y="5" width="2" height="17" rx="1" fill="#3aa0e0"/><circle cx="12" cy="5" r="2.2" fill="#3aa0e0"/></svg>`,
+  frog:`<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="15" rx="9" ry="6.5" fill="#3cc46a"/><circle cx="7.5" cy="8" r="3.4" fill="#3cc46a"/><circle cx="16.5" cy="8" r="3.4" fill="#3cc46a"/><circle cx="7.5" cy="7.6" r="1.5" fill="#111"/><circle cx="16.5" cy="7.6" r="1.5" fill="#111"/><path d="M8 16.5q4 2.6 8 0" stroke="#145a2c" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`
+};
+let game=null, prompt=null, peek=false, speed="normal", logLines=[], gen=0;
+let view={}, fx={flip:new Set(),drop:new Set(),enter:new Set(),glow:new Set()};
+let settings={n:4,name:"You",speed:"normal"};
+try{Object.assign(settings,JSON.parse(localStorage.getItem("snaked-settings")||"{}"))}catch(e){}
+let myOrder=[], drag=null, dragSuppress=false, myPick=null;
+const byNum=(a,b)=>a.n-b.n||SUITI[a.s]-SUITI[b.s], bySuit=(a,b)=>SUITI[a.s]-SUITI[b.s]||a.n-b.n;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms*SPEED[speed]));
+const nm=c=>S.name(c);
+const pname=i=>i===0?"You":game.players[i].name;
+const verb=(i,v)=>i===0?v:v+"s";
+const img=c=>`img/${c.id}.jpg`;
+
+function sortHand(mode){if(!game)return;myOrder=game.players[0].hand.slice().sort(mode==="suit"?bySuit:byNum).map(c=>c.id);render()}
+function orderedHand(h){const ix=c=>{const i=myOrder.indexOf(c.id);return i<0?999:i};return h.slice().sort((a,b)=>ix(a)-ix(b))}
+function cardHTML(c,{sm=false,cls="",face=true,data=""}={}){
+  const t=face&&game&&game.trump&&c.s===game.trump&&!sm?`<span class="tb">T</span>`:"";
+  return `<button class="card ${sm?"sm":""} ${cls}" ${data} ${cls.includes("legal")?"":"tabindex=\"-1\""} aria-label="${face?nm(c):"Hidden card"}"><img src="${face?img(c):"img/back.jpg"}" alt="">${t}</button>`;
+}
+function log(t,k=""){logLines.push([t,k]);if(logLines.length>300)logLines.shift();renderLog()}
+function renderLog(){const el=$("log");el.innerHTML=`<h2>Game log</h2>`+logLines.map(([t,k])=>`<p class="${k}">${t}</p>`).join("");el.scrollTop=el.scrollHeight}
+
+// ---------- table geometry ----------
+function geom(){
+  const f=$("field"),W=f.clientWidth,H=f.clientHeight,n=game.n;
+  const fc=Math.round(Math.max(26,Math.min(58,W/(n>4?17:15),H/9.5)));
+  const seatW=3*fc+8, seatH=fc*1.37+84;
+  const rx=Math.max(20,50-(seatW/2+4)/W*100), ry=Math.max(18,50-(seatH/2+2)/H*100);
+  f.style.setProperty("--fc",fc+"px");f.style.setProperty("--tc",Math.round(fc*1.2)+"px");
+  const lift=(fc*1.37*.45)/H*100;
+  const pos=i=>{const a=Math.PI/2+((i%n)*2*Math.PI)/n;return{x:50+rx*Math.cos(a),y:50+ry*Math.sin(a)-(i===0?lift:0)}};
+  return {W,H,fc,pos};
+}
+
+// ---------- rendering ----------
+function render(){
+  if(!game)return;
+  renderMeta();renderSeats();renderTrick();renderHub();renderBar();renderMe();
+}
+function renderMeta(){
+  const g=game;
+  const t=g.phase==="reveal"||g.phase==="setup"?"Trump: not set yet":g.trump?`<span class="dot" style="background:${SUITCOL[g.trump]}"></span> Trump: ${S.cap(g.trump)}`:"No trump";
+  const tr=g.phase==="play"||g.phase==="flip"?`<span class="pill">Trick ${g.trickNo}/8</span>`:g.phase==="reveal"?`<span class="pill">Reveal ${(g.revealPass??0)+1}/3</span>`:"";
+  $("meta").innerHTML=`<span class="pill">Round ${Math.min(g.round,3)}/3</span>${tr}`;
+}
+function renderSteps(){
+  const g=game,ph=g.phase,rp=g.revealPass??0;
+  const st=[["Reveal 1",ph==="reveal"&&rp===0],["Reveal 2",ph==="reveal"&&rp===1],["Reveal 3",ph==="reveal"&&rp===2],["Trump",ph==="trump"],["Tricks",ph==="play"||ph==="flip"],["Score",ph==="score"||ph==="over"]];
+  const idx=ph==="reveal"?rp:ph==="trump"?3:(ph==="play"||ph==="flip")?4:ph==="score"||ph==="over"?5:-1;
+  const dots=`<span class="tdots">${[...Array(8)].map((_,k)=>`<i class="${k+1<g.trickNo||(ph==="score")?"on":k+1===g.trickNo&&idx===4?"cur":""}"></i>`).join("")}</span>`;
+  $("steps").innerHTML=st.map(([l],k)=>`<span class="step ${k<idx?"done":k===idx?"now":""}">${l}${k===4?dots:""}</span>`).join("");
+}
+function slotHTML(i,c,k){
+  // c: card or marker
+  if(c==="pick")return `<div class="slot pick"></div>`;
+  if(c==="back")return `<div class="slot"><div class="fc dropin"><div class="inner"><img class="face back" src="img/back.jpg" alt=""><img class="face front" src="img/back.jpg" alt=""></div></div></div>`;
+  if(!c)return `<div class="slot empty"></div>`;
+  const prom=prompt&&prompt.cards&&i===0&&prompt.cards.includes(c);
+  const cls=["fc","up"];if(fx.flip.has(c.id)){cls.splice(1,1);cls.push("flipping")}
+  if(fx.glow.has(c.id))cls.push("glow");if(prom)cls.push("legal");
+  let badge="",bust=false;
+  if(game.phase!=="reveal"&&!fx.flip.has(c.id)){const d=c.n-game.players[i].tricks;
+    const left=game.phase==="play"||game.phase==="flip"?9-game.trickNo:0;
+    badge=d>0&&d>left?`<span class="tgt far" title="Can't reach ${c.n}: only ${left} trick${left===1?"":"s"} left">+${d}</span>`:d>0?`<span class="tgt need" title="Needs ${d} more trick${d>1?"s":""} to hit ${c.n}">+${d}</span>`:d===0?`<span class="tgt hit" title="On target: ${c.n} tricks">&#10003; ${c.n}</span>`:`<span class="tgt over" title="Already past ${c.n}">over</span>`;bust=d<0}
+  return `<div class="slot${bust?" bust":""}">${badge}<div class="${cls.join(" ")}" ${i===0?`data-id="${c.id}"`:""} title="${nm(c)}"><div class="inner"><img class="face back" src="img/back.jpg" alt=""><img class="face front" src="${img(c)}" alt="${nm(c)}"></div></div></div>`;
+}
+function renderSeats(){
+  const g=game,G=geom();let h="";
+  g.players.forEach((p,i)=>{
+    const {x,y}=G.pos(i);
+    let ups=(i===0?orderedHand(p.hand):p.hand.slice().sort(byNum)).filter(c=>c.up);
+    // during a reveal step, cards just chosen are drawn face down until the flip
+    if(view.revealing)ups=ups.filter(c=>!view.revealing.has(c.id));
+    const slots=[...ups];
+    if(g.phase==="reveal"&&slots.length<3){
+      const pending=view.revealing?"back":(i===0?(myPick?"back":"pick"):"back");
+      if(view.stage!=="pre")slots.push(pending);
+    }
+    while(slots.length<3)slots.push(null);
+    const hid=p.hand.filter(c=>!c.up).length-(i===0&&myPick&&!view.revealing?0:0);
+    const lead=g.phase==="play"&&g.leader===i&&g.trick.length===0&&!view.showTrick;
+    h+=`<div class="seat ${i===0?"mine":""} ${y<42?"top":""} ${g.turn===i?"turn":""} ${view.winner===i?"won":""}" style="left:${x}%;top:${y}%">
+      <div class="slots">${slots.map((c,k)=>slotHTML(i,c,k)).join("")}</div>
+      <div class="plate"><span class="avatar" style="${i===0?"":"background:var(--muted)"}">${(i===0?(settings.name||"Y"):p.name)[0].toUpperCase()}</span><span class="pname">${i===0?"You":p.name}</span>${g.dealer===i?`<span class="chip">D</span>`:""}${lead?`<span class="chip lead">Leads</span>`:""}</div>
+      <div class="inforow">
+      <div class="flies" title="${p.tricks} trick${p.tricks===1?"":"s"} won this round">${p.tricks?[...Array(p.tricks)].map((_,k)=>ICON.fly.replace("<svg",`<svg class="${view.newFly===i&&k===p.tricks-1?"pop":""}"`)).join("")+`<span class="fn">${p.tricks}</span>`:`<span class="none">no tricks yet</span>`}</div>
+      <div class="tok">${(()=>{const fp=p.frogs*3,dp=p.dfly+p.tricks;return `<span class="fp" title="${p.frogs} frog${p.frogs===1?"":"s"} × 3 = ${fp} points">${ICON.frog}<b>${fp}</b></span><span class="dp" title="${dp} dragonfl${dp===1?"y":"ies"} this game = ${dp} points">${ICON.fly}<b>${dp}</b></span><span class="tot" title="Total points">= <b>${fp+dp}</b></span>`})()}${i!==0?`<span class="hidc" title="Hidden cards">· ${hid} hidden</span>`:""}</div>
+      </div>
+      ${peek&&i!==0?`<div class="peekrow">${p.hand.filter(c=>!c.up).sort(byNum).map(c=>`<img src="${img(c)}" alt="${nm(c)}" title="${nm(c)}">`).join("")}</div>`:""}
+    </div>`;
+  });
+  $("seats").innerHTML=h;
+}
+function renderTrick(){
+  // keyed update so cards slide in once and can sweep away to the winner
+  const g=game,G=geom(),tr=view.showTrick||g.trick,box=$("trick"),keep=new Set();
+  tr.forEach((t,k)=>{
+    const id=t.card.id;keep.add(id);
+    let el=box.querySelector(`[data-cid="${id}"]`);
+    if(!el){el=document.createElement("div");el.dataset.cid=id;el.className="tcard enter";
+      el.innerHTML=`<img src="${img(t.card)}" alt="${nm(t.card)}"><span class="tlabel" hidden></span>`;
+      el.addEventListener("animationend",()=>el.classList.remove("enter"),{once:true});box.appendChild(el)}
+    const s=G.pos(t.p),tx=50+(s.x-50)*.36,ty=50+(s.y-50)*.3;
+    el.style.left=tx+"%";el.style.top=ty+"%";
+    el.style.setProperty("--fx",((s.x-tx)/100*G.W).toFixed(0)+"px");el.style.setProperty("--fy",((s.y-ty)/100*G.H).toFixed(0)+"px");
+    el.style.setProperty("--rot",((t.p*37)%17-8)+"deg");
+    if(view.sweepTo!=null){const w=G.pos(view.sweepTo);el.style.setProperty("--wx",((w.x-tx)/100*G.W).toFixed(0)+"px");el.style.setProperty("--wy",((w.y-ty)/100*G.H).toFixed(0)+"px")}
+    el.classList.toggle("win",view.winIdx===k);el.classList.toggle("snake",view.snakeIdx===k);el.classList.toggle("sweep",!!view.sweep);
+    const lab=view.winIdx===k?`${pname(t.p)} ${verb(t.p,"win")}`:view.snakeIdx===k?"Leads next":"";
+    const L=el.querySelector(".tlabel");L.hidden=!lab;L.textContent=lab;L.style.color=view.winIdx===k?"var(--good)":"var(--gold)";
+  });
+  box.querySelectorAll(".tcard").forEach(el=>{if(!keep.has(el.dataset.cid))el.remove()});
+}
+function emblem(pop){const g=game;
+  return g.trump?`<div class="emblem ${pop?"pop":""}" style="background:${SUITCOL[g.trump]}">Trump</div>`:`<div class="emblem none ${pop?"pop":""}">No<br>trump</div>`}
+function renderHub(){
+  const g=game;let h="";
+  if(view.hub)h=view.hub;
+  else if(g.phase==="play"||g.phase==="flip"){ if(!(view.showTrick||g.trick).length)h=`<div class="hubsub">Trick ${g.trickNo} of 8</div>`; }
+  $("hub").innerHTML=h;
+  const tc=$("tcorner"),show=!(g.phase==="reveal"||g.phase==="setup"||(g.phase==="trump"&&!view.trumpSet));
+  const html=show?`<span class="d ${g.trump?"":"none"}" style="${g.trump?"background:"+SUITCOL[g.trump]:""}"></span><span><small>Trump</small>${g.trump?S.cap(g.trump):"None this round"}</span>`:"";
+  if(tc.innerHTML!==html){tc.innerHTML=html;tc.classList.remove("pop");if(html){void tc.offsetWidth;tc.classList.add("pop")}}
+}
+function renderBar(){
+  const g=game;let msg="",sub="",ch="",you=false;
+  if(prompt){you=true;
+    if(prompt.kind==="reveal"){msg=`Pick a card to reveal (${prompt.pass+1} of 3)`;sub=prompt.pass===0?"Tap one of your cards below. Everyone flips together.":"Everyone else is ready."}
+    if(prompt.kind==="play"){const led=g.trick[0]?.card.s;
+      msg=g.trick.length?(prompt.cards.every(c=>c.s===led)?`Your turn: follow ${S.cap(led)}`:`You have no ${S.cap(led)}. Play any card.`):"Your lead. Play any card.";
+      sub="Tap a glowing card."}
+    if(prompt.kind==="flip"){msg="Turn up a new prediction card";sub="Pick one of your hidden cards."}
+    if(prompt.kind==="steal"){msg="Your snake hit its number! Steal a frog from:";ch=prompt.targets.map(i=>`<button class="btn primary" data-steal="${i}">${g.players[i].name} (${g.players[i].frogs} frog${g.players[i].frogs>1?"s":""})</button>`).join("")}
+  }else{msg=view.msg||"";sub=view.sub||""}
+  $("bar").className="tip"+(you?" you":"");
+  if(!msg&&!ch){$("bar").innerHTML="";return}
+  $("bar").innerHTML=`<div class="msg">${msg}</div>${sub?`<div class="sub">${sub}</div>`:""}${ch?`<div class="choices">${ch}</div>`:""}`;
+}
+function renderMe(){
+  const g=game,me=g.players[0],ord=orderedHand(me.hand),ups=ord.filter(c=>c.up),hid=ord.filter(c=>!c.up);
+  const pc=prompt&&prompt.cards?new Set(prompt.cards):null;
+  const mk=c=>{const legal=pc&&pc.has(c);return cardHTML(c,{cls:(myPick===c?"chosen ":"")+(legal?"legal":(pc?"dim":"")),data:`data-id="${c.id}"`})};
+  $("me").innerHTML=`<div class="row">${hid.map(mk).join("")||`<span class="empty">No hidden cards left</span>`}</div>`;
+  sizeHand(hid.length);
+}
+// cards shrink to fit when the hand is full, and grow as it empties
+function sizeHand(n){
+  const me=$("me");if(!n){me.style.removeProperty("--cw");return}
+  const avail=me.clientWidth-16, narrow=innerWidth<=700;
+  const fit=narrow?avail/(1+.68*(n-1)):(avail-4*(n-1))/n;
+  const max=n>6?Math.min(innerHeight*.13,96):Math.min(innerHeight*.17,124);
+  me.style.setProperty("--cw",Math.floor(Math.max(34,Math.min(fit,max)))+"px");
+}
+let rto;window.addEventListener("resize",()=>{clearTimeout(rto);rto=setTimeout(()=>{if(game){renderSeats();renderTrick();sizeHand(game.players[0].hand.filter(c=>!c.up).length)}},120)});
+
+// ---------- input ----------
+function ask(kind,extra){return new Promise(res=>{prompt={kind,res,...extra};render()})}
+document.addEventListener("click",e=>{
+  if(dragSuppress&&e.target.closest(".card")){dragSuppress=false;return}
+  const so=e.target.closest("[data-sort]");if(so){sortHand(so.dataset.sort);return}
+  if(!prompt)return;
+  const st=e.target.closest("[data-steal]");
+  if(st&&prompt.kind==="steal"){const p=prompt;prompt=null;p.res(+st.dataset.steal);return}
+  const b=e.target.closest("[data-id]");if(!b)return;
+  const c=prompt.cards&&prompt.cards.find(x=>x.id===b.dataset.id);
+  if(c){const p=prompt;prompt=null;if(p.kind==="reveal")myPick=c;p.res(c)}
+});
+// drag to rearrange your hand
+function clearMarks(){document.querySelectorAll("#me .card.src,#me .card.ins-l,#me .card.ins-r").forEach(x=>x.classList.remove("src","ins-l","ins-r"))}
+document.addEventListener("pointerdown",e=>{const b=e.target.closest("#me .card[data-id]");if(!b||e.button>0)return;drag={id:b.dataset.id,x:e.clientX,y:e.clientY,active:false}});
+document.addEventListener("pointermove",e=>{
+  if(!drag)return;
+  if(!drag.active){
+    if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<8)return;
+    const src=document.querySelector(`#me .card[data-id="${drag.id}"]`);if(!src){drag=null;return}
+    const r=src.getBoundingClientRect(),gh=src.cloneNode(true);
+    gh.className="card dragghost";gh.style.width=r.width+"px";document.body.appendChild(gh);
+    Object.assign(drag,{active:true,ghost:gh,w:r.width,h:r.height});document.body.classList.add("dragging");
+  }
+  e.preventDefault();
+  drag.ghost.style.transform=`translate(${e.clientX-drag.w/2}px,${e.clientY-drag.h/2}px) rotate(-4deg)`;
+  clearMarks();
+  document.querySelector(`#me .card[data-id="${drag.id}"]`)?.classList.add("src");
+  const el=document.elementFromPoint(e.clientX,e.clientY)?.closest("#me .card[data-id]");
+  drag.target=null;
+  if(el&&el.dataset.id!==drag.id){const r=el.getBoundingClientRect(),after=e.clientX>r.left+r.width/2;el.classList.add(after?"ins-r":"ins-l");drag.target={id:el.dataset.id,after}}
+},{passive:false});
+function endDrag(apply){
+  const d=drag;drag=null;if(!d||!d.active)return;
+  d.ghost.remove();document.body.classList.remove("dragging");clearMarks();
+  dragSuppress=true;setTimeout(()=>dragSuppress=false,80);
+  if(apply&&d.target&&game){
+    const ids=orderedHand(game.players[0].hand).map(c=>c.id).filter(x=>x!==d.id);
+    ids.splice(ids.indexOf(d.target.id)+(d.target.after?1:0),0,d.id);myOrder=ids;
+  }
+  render();
+}
+document.addEventListener("pointerup",()=>endDrag(true));
+document.addEventListener("pointercancel",()=>endDrag(false));
+document.addEventListener("dragstart",e=>{if(e.target.closest(".card,.fc"))e.preventDefault()});
+
+const Human={
+  reveal:(g,p)=>ask("reveal",{cards:g.players[p].hand.filter(c=>!c.up),pass:g.revealPass}),
+  play:(g,p,legal)=>ask("play",{cards:legal}),
+  flip:(g,p)=>ask("flip",{cards:g.players[p].hand.filter(c=>!c.up)}),
+  steal:(g,p,targets)=>ask("steal",{targets}),
+};
+
+// ---------- events: pacing, animation, log ----------
+async function onEvent(type,d,my){
+  const g=game;
+  const guard=()=>{if(my!==gen)throw new Error("stale")};
+  guard();
+  switch(type){
+    case "deal":
+      view={stage:"pre"};myPick=null;sortHand("number");
+      log(`Round ${g.round}`,"r");log(`${g.dealer===0?"You deal":g.players[g.dealer].name+" deals"} 9 cards each. ${d.buried} card${d.buried===1?" is":"s are"} buried.`);
+      view.hub=`<div class="hubtext">Round ${g.round}</div><div class="hubsub">9 cards each · ${d.buried} buried</div>`;view.msg="Dealing…";render();await sleep(1200);break;
+    case "revealstart":
+      view={stage:"pick"};myPick=null;
+      view.hub=`<div class="hubtext">Reveal ${d.pass+1} of 3</div><div class="hubsub">Everyone picks a card in secret</div>`;
+      render();await sleep(500);break;
+    case "revealall":{
+      // everyone has chosen: show the backs, count down, flip together
+      view.revealing=new Set(d.picks.map(c=>c.id));view.stage="ready";
+      view.hub=`<div class="hubtext">Ready…</div>`;view.msg="Everyone has picked.";view.sub="";render();await sleep(650);guard();
+      view.hub=`<div class="hubtext big">Flip!</div>`;view.revealing=null;
+      d.picks.forEach(c=>fx.flip.add(c.id));render();
+      await sleep(1500);guard();
+      d.picks.forEach((c,i)=>log(`${pname(i)} ${verb(i,"reveal")} ${nm(c)}.`));fx.flip.clear();myPick=null;view={stage:"pick"};render();break;}
+    case "trump":{
+      g.phase="trump";
+      const count={};g.players.forEach(p=>p.hand.forEach(c=>{if(c.up)count[c.s]=(count[c.s]||0)+1}));
+      const order=["red","blue","green","pink","black"].filter(s=>count[s]);
+      const max=Math.max(0,...order.filter(s=>s!=="black").map(s=>count[s]));
+      const tally=`<div class="tally">${order.map((s,k)=>`<span class="${s==="black"?"out":count[s]===max?"top":""}" style="animation-delay:${k*120}ms"><span class="dot" style="background:${SUITCOL[s]}"></span>${S.cap(s)} ${count[s]}</span>`).join("")}</div>`;
+      view.hub=`<div class="hubtext">Counting colours</div>${tally}`;view.msg="Trump is the colour showing the most cards.";view.sub="Snakes (black) can never be trump.";render();await sleep(1700);guard();
+      g.phase="trump";view.trumpSet=true;view.hub=emblem(true)+`<div class="hubtext">${d.trump?S.cap(d.trump)+" is trump":"No trump"}</div>${tally}`;
+      view.msg=d.trump?`${S.cap(d.trump)} is trump`:"No trump this round";view.sub=d.why;
+      log(d.trump?`Trump is ${S.cap(d.trump)}. ${d.why}`:d.why,"k");render();await sleep(2400);break;}
+    case "firstlead":
+      fx.glow.add(d.card.id);g.turn=d.p;
+      view.hub=`<div class="hubtext">${pname(d.p)} ${verb(d.p,"lead")} first</div><div class="hubsub">${S.cap(d.why)}: ${nm(d.card)}</div>`;
+      view.msg=`${pname(d.p)} ${verb(d.p,"lead")} first`;view.sub=`${S.cap(d.why)}: ${nm(d.card)}.`;
+      log(`${pname(d.p)} ${verb(d.p,"lead")} first (${d.why}: ${nm(d.card)}).`,"k");render();await sleep(1900);guard();fx.glow.clear();view={};g.turn=null;render();break;
+    case "turn":
+      view.msg=d.p===0?"":`${g.players[d.p].name} is ${d.kind==="flip"?"turning up a card":"choosing a card"}…`;view.sub="";render();
+      if(d.p!==0)await sleep(600);break;
+    case "play":log(`${pname(d.p)} ${verb(d.p,"play")} ${nm(d.card)}.`);render();await sleep(350);break;
+    case "flip":fx.flip.add(d.card.id);log(`${pname(d.p)} ${verb(d.p,"turn")} up ${nm(d.card)}.`);render();await sleep(900);guard();fx.flip.delete(d.card.id);break;
+    case "trickwon":{
+      const t=g.trick;view.showTrick=t.slice();
+      view.winIdx=t.findIndex(x=>x.p===d.p&&x.card===d.card);view.snakeIdx=d.stolen?t.findIndex(x=>x.p===d.next):null;view.winner=d.p;
+      log(`${pname(d.p)} ${verb(d.p,"win")} trick ${g.trickNo} with ${nm(d.card)}.`,"k");
+      if(d.stolen)log(`${pname(d.next)} played the highest snake and ${verb(d.next,"lead")} next.`,"k");
+      view.msg=`${pname(d.p)} ${verb(d.p,"win")} the trick with ${nm(d.card)}`;view.sub=d.stolen?`${pname(d.next)} played the highest snake, so ${d.next===0?"you lead":"they lead"} the next trick.`:"";
+      g.turn=null;render();await sleep(d.stolen?2100:1400);guard();
+      view.sweepTo=d.p;renderTrick();void $("trick").offsetWidth;view.sweep=true;renderTrick();await sleep(650);guard();
+      view={newFly:d.p};render();await sleep(500);guard();view={};break;}
+    case "steal":if(d.from==null){log(`${pname(d.p)} hit with a snake but nobody has a frog, so ${d.p===0?"you take":"they take"} one from the supply.`,"k");view.msg="";render();break}log(`${pname(d.p)} ${verb(d.p,"steal")} a frog from ${pname(d.from)}.`,"k");view.msg=`${pname(d.p)} ${verb(d.p,"steal")} a frog from ${pname(d.from)}!`;render();await sleep(1100);break;
+    case "roundover":g.turn=null;render();await roundSummary(d.results);break;
+    case "gameover":gameOver(d);break;
+  }
+  guard();
+}
+function roundSummary(results){
+  const g=game;
+  results.forEach(r=>log(`${pname(r.i)}: ${r.tricks} trick${r.tricks===1?"":"s"}, prediction ${nm(r.last)}. ${r.hit?"Frog!":"Missed."}`));
+  return new Promise(res=>{
+    const rows=results.map(r=>`<tr><td>${r.i===0?"You":g.players[r.i].name}</td><td>${cardHTML(r.last,{sm:true})}</td><td>${r.tricks}</td><td>${!r.hit?`<span class="no">missed</span>`:r.steal?(r.stoleFrom!=null?`<span class="yes">stole a frog from ${r.stoleFrom===0?"you":g.players[r.stoleFrom].name}</span>`:`<span class="yes">+1 frog (no one to steal from)</span>`):`<span class="yes">+1 frog</span>`}</td><td><b>${g.points(r.i)}</b></td></tr>`).join("");
+    showPanel(`<h2>Round ${g.round} results</h2><p>Each trick is a dragonfly (1 point). Matching your last card's number exactly earns a frog (3 points).</p>
+      <div style="overflow-x:auto"><table class="res"><tr><th>Player</th><th>Last card</th><th>Tricks</th><th>Frog</th><th>Total</th></tr>${rows}</table></div>
+      <button class="btn primary big" id="cont">${g.round<3?"Deal round "+(g.round+1):"See final scores"}</button>`);
+    $("cont").onclick=()=>{hidePanel();res()};$("cont").focus();
+  });
+}
+function gameOver(d){
+  const g=game,w=d.winners.map(i=>i===0?"You":g.players[i].name);
+  log(`Game over. ${w.join(" and ")} win${w.length===1&&d.winners[0]!==0?"s":""}!`,"r");
+  const rows=d.order.map((i,k)=>`<tr><td>${k+1}</td><td>${i===0?"You":g.players[i].name}</td><td>${g.players[i].dfly}</td><td>${g.players[i].frogs}</td><td><b>${g.points(i)}</b></td></tr>`).join("");
+  showPanel(`<h2>${d.winners.includes(0)?(d.winners.length>1?"You tied for the win!":"You <span>win!</span>"):w.join(" & ")+" win"+(w.length>1?"":"s")}</h2>
+    <p>Most points wins. Ties go to the player with more frogs.</p>
+    <div style="overflow-x:auto"><table class="res"><tr><th>#</th><th>Player</th><th>Dragonflies</th><th>Frogs</th><th>Points</th></tr>${rows}</table></div>
+    <div class="seg"><button class="btn primary big" id="again">Play again</button><button class="btn" id="setup2">Change players</button></div>`);
+  $("again").onclick=()=>{hidePanel();start()};$("setup2").onclick=setup;
+}
+
+// ---------- panels ----------
+function showPanel(h){$("panel").innerHTML=h;$("ov").hidden=false}
+function hidePanel(){$("ov").hidden=true}
+function miniTable(n){let h="";for(let i=0;i<n;i++){const a=Math.PI/2+i*2*Math.PI/n;h+=`<i class="${i===0?"you":""}" style="left:${50+40*Math.cos(a)}%;top:${50+36*Math.sin(a)}%"></i>`}return h}
+function setup(){
+  showPanel(`<h2>Snake'<span>d</span></h2>
+    <div class="howto">
+      <div><b>1 · Reveal</b><span>Everyone flips 3 cards face up, one at a time, all together.</span></div>
+      <div><b>2 · Predict</b><span>Your last showing card is how many tricks you'll win. Hit it exactly for a frog.</span></div>
+      <div><b>3 · Snakes</b><span>The highest snake played leads the next trick. Black is never trump.</span></div>
+    </div>
+    <label class="fld" for="nm">Your name<input type="text" id="nm" maxlength="14" value="${(settings.name||"You").replace(/"/g,"")}"></label>
+    <div class="fld">How many players?<div class="seg" id="seg-n">${[2,3,4,5,6].map(n=>`<button class="btn" data-n="${n}" aria-pressed="${settings.n===n}">${n}</button>`).join("")}</div>
+      <div class="mini" id="mini"></div><span id="deckinfo" class="stats"></span></div>
+    <div class="fld">Computer speed<div class="seg" id="seg-s">${["slow","normal","fast"].map(s=>`<button class="btn" data-s="${s}" aria-pressed="${settings.speed===s}">${S.cap(s)}</button>`).join("")}</div></div>
+    <button class="btn primary big" id="go">Deal the cards</button>`);
+  const info=()=>{const [lo,hi]=S.RANGE[settings.n],size=5*(hi-lo+1);$("deckinfo").textContent=`You + ${settings.n-1} computer player${settings.n>2?"s":""} · cards ${lo}–${hi} · ${size}-card deck · ${size-9*settings.n} buried`;$("mini").innerHTML=miniTable(settings.n)};info();
+  $("seg-n").onclick=e=>{const b=e.target.closest("[data-n]");if(!b)return;settings.n=+b.dataset.n;$("seg-n").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));info()};
+  $("seg-s").onclick=e=>{const b=e.target.closest("[data-s]");if(!b)return;settings.speed=b.dataset.s;$("seg-s").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b))};
+  $("go").onclick=()=>{settings.name=$("nm").value.trim()||"You";try{localStorage.setItem("snaked-settings",JSON.stringify(settings))}catch(e){};hidePanel();start()};
+}
+function rules(){
+  showPanel(`<h2>How to play</h2><div class="rules">
+  <h3>Setup</h3><ul><li>Everyone is dealt 9 cards. Leftover cards are buried.</li><li>Three reveals: everyone secretly picks a card, then all flip at the same time. After three reveals everyone shows 3 cards.</li><li>Everyone starts with 1 frog.</li></ul>
+  <h3>Trump and first lead</h3><ul><li>The colour showing the most cards is trump. Black (snakes) can never be trump.</li><li>Tie: the tied colour with the highest single card wins. Still tied: no trump.</li><li>The highest snake showing leads first. No snakes showing: the highest card showing leads.</li></ul>
+  <h3>Tricks</h3><ul><li>8 tricks. You must follow the led colour if you can, using showing or hidden cards.</li><li>Highest trump wins. Otherwise the highest card of the led colour wins.</li><li>If any snake is played, the highest snake leads the next trick, even if it didn't win.</li><li>You must always have at least one card showing. Play your last one and you turn up a hidden card of your choice.</li></ul>
+  <h3>Badges on showing cards</h3><ul><li><b>+2</b> (gold): needs 2 more tricks to hit that card.</li><li><b>&#10003; 3</b> (green): on target right now.</li><li><b>+6</b> (grey): not enough tricks left to reach it.</li><li><b>over</b> (red): already too many tricks for that card.</li></ul>
+  <h3>Scoring</h3><ul><li>Each trick won: 1 dragonfly (1 point).</li><li>Your last card is your prediction. Win exactly that many tricks: +1 frog (3 points).</li><li>Hit it with a snake: instead of a new frog, steal a frog from an opponent.</li><li>3 rounds. Most points wins; ties go to most frogs.</li></ul>
+  </div><button class="btn primary" id="close">Back to the game</button>`);
+  $("close").onclick=()=>{hidePanel();if(!game)setup()};
+}
+
+// ---------- start ----------
+async function start(){
+  gen++;const my=gen;prompt=null;logLines=[];view={};myPick=null;fx={flip:new Set(),drop:new Set(),enter:new Set(),glow:new Set()};speed=settings.speed;
+  const names=[settings.name||"You",...BOTNAMES.slice(0,settings.n-1)];
+  game=new S.Game(names,[Human,...Array(settings.n-1).fill(S.Bot)],{event:(t,d)=>onEvent(t,d,my)});
+  render();renderLog();
+  try{await game.run()}catch(e){if(e.message!=="stale"&&my===gen){console.error(e);log("Something went wrong: "+e.message,"r")}}
+}
+$("b-new").onclick=setup;
+$("b-rules").onclick=rules;
+$("b-log").onclick=e=>{const l=$("log");l.hidden=!l.hidden;e.currentTarget.setAttribute("aria-pressed",!l.hidden);if(!l.hidden)l.scrollTop=l.scrollHeight};
+$("b-peek").onclick=e=>{peek=!peek;e.currentTarget.setAttribute("aria-pressed",peek);render()};
+setup();
+</script>
+
+</body>
+</html>
