@@ -26,5 +26,4 @@ See [docs/RULES.md](docs/RULES.md). The in-game **Rules** button has the same su
 
 ## Notes
 
-- The blue 3 uses the jungle art until a lily-pad version is made.
 - Card art © the SNAKE'D designer. All rights reserved.
