@@ -1,0 +1,16 @@
+{
+  "name": "snaked",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SNAKE'D card game: online multiplayer server",
+  "scripts": {
+    "start": "node server/server.js",
+    "simulate": "node tools/simulate.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
